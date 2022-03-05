@@ -1,0 +1,86 @@
+import numpy as np 
+import matplotlib.pyplot as plt 
+from math import sinh , cosh, tanh
+from scipy.sparse.linalg import gmres
+from scipy import sparse 
+
+def fdif(n,Bi):
+    ''' this function creates RHS and LHS matrix to compute Steady state 1D heat diffusion over specified domain. 
+    then solve Ax=b system of equations with scipy.sparse.linalg.gmres function for sparse matrix 
+    the equation is u"[x]-hp/ka *u[x]=0  . discretized form using Central Finite Difference method 
+    is :(u[i+1]-2u[i]+u[i+1])/h**2 - Bi*t u=0 , where h is spatial step and Bi is the Biot number 
+    to solve this eqn. first we deifne LHS matrix A and RHS matrix b according to the equation and Boundary
+    conditions then we solve Ax=b system to find temprature disturbution over domain '''
+    X=[]
+    U=[]
+    # define RHS and LHS
+    for nx in n:
+        x=np.linspace(0,1,nx+1)    # grid 
+        h=1/nx   #step
+        a=1
+        f=Bi*a    #coeff.
+        m=np.sqrt(Bi)   #coeff.
+        b=np.zeros(nx+1)    #initial RHS
+        A=np.zeros((nx+1,nx+1),dtype=float)   #initial LHS
+        b[0]=1       # boundary condition at left side 
+        b[nx]=0     # boundary cond. at right side 
+        N=nx+1
+        X.append(x)
+        #set matrix A interior values 
+        lower=np.zeros(N-1)
+        upper=np.zeros(N-1)
+        main=np.zeros(N)    
+        lower_offset=1
+        u_n=np.zeros(nx+1) 
+        for i in range(1,N):
+            main[i]=-(2+h**2*f)
+        for i in range (N-1):
+            lower[i]=1
+            upper[i]=1
+            # Boundary conditions 
+        
+        main[0]=1
+        upper[0]=0
+        main[-1]=-1
+        lower[-1]=1
+        #create sparse matrix 
+        A=sparse.diags(diagonals=[main, lower, upper],
+        offsets=[0, -lower_offset, lower_offset],
+        shape=(nx+1, nx+1), format='csr')
+        u,e=gmres(A,b,maxiter=10000,callback=counter)
+        U.append(u)
+         
+        
+        m=np.sqrt(Bi*a) 
+        #compute error for each grid size 
+        eror=np.zeros(nx+1)
+        for k in range(nx+1):
+            u_n[k]=-(Bi+m*tanh(m))/(m + tanh(m))*sinh(m*x[k])+cosh(m*x[k])
+        for j in range(nx+1):
+            eror[j]=   abs((u_n[j]-u[j])/u_n[j] )
+        plt.plot (x,eror,label=('n=',nx)) ;plt.xlabel('x*');plt.ylabel('Absolute Error');plt.legend()    
+    plt.show()  
+        #Analytical solution for the problem  
+    nx=n[-1]
+    u_n=np.zeros(nx+1)    
+    for k in range(nx+1):
+        u_n[k]=-(Bi+m*tanh(m))/(m + tanh(m))*sinh(m*x[k])+cosh(m*x[k])
+        #plot 
+    for d in range(len(U)):
+        plt.plot(X[d],U[d],label=('numerical n=',n[d]))
+        
+    plt.plot(x,u_n,label='analytical',linewidth=2.5);
+    plt.legend()
+    plt.xlabel('x*');plt.ylabel('teta');plt.show()
+    plt.spy(A,markersize= 1);plt.show()
+# define a function to get residuals at each iteration in GMRES Solver    
+def counter(rk=None):
+    ''' This function returns iteration no. and residual at each iter. for gmres solver'''
+    counter.niter += 1
+    print("# iter {:3d}, residual = {}".format(counter.niter,str(rk)))
+counter.niter=0
+n=[5,10,20,40,60] #number of mesh points 
+
+Bi=0.1    #Biot number 
+call function 
+fdif(n,Bi)
